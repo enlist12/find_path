@@ -61,6 +61,7 @@ def dfs(block:idaapi.BasicBlock,cur:list[int]):
     return
 
 def comp(type:str,pos,vector,state:angr.SimState)->bool:
+    cur=0
     if type=='reg':
         cur=idc.get_reg_value(pos)
         state.solver.add(vector==cur)
@@ -69,10 +70,15 @@ def comp(type:str,pos,vector,state:angr.SimState)->bool:
     if type=='mem':
         size=vector.size()
         length=int(size/8)
-        for j in range(length):
-            num=idc.get_wide_byte(pos+j)
-            vec=state.memory.load(pos+j,1,disable_actions=True,inspect=False)
-            state.solver.add(vec==num)
+        if length==1:
+            cur=idc.get_wide_byte(pos)
+        elif length==2 :
+            cur=idc.get_wide_word(pos)
+        elif length==4 :
+            cur=idc.get_wide_dword(pos)
+        elif length==8 :
+            cur=idc.get_wide_qword(pos)
+        state.solver.add(vector==cur)
         if state.satisfiable():
             return True
     return False
@@ -243,16 +249,8 @@ for path in paths:
                 size=vector.size()
                 if not comp('mem',addr, vector, final.copy()):
                     length=int(size/8)
-                    ans=[]
-                    str='{'
-                    for j in range(length):
-                        vec=final.memory.load(addr+j,1,disable_actions=True,inspect=False)
-                        byte=final.solver.eval(vec)
-                        str+=f' {hex(byte)},'
-                        ans.append(byte)
-                    str = str[:-1]
-                    str+=' }'
-                    output+=f'{hex(addr)} ({length}) :{str}\n'
+                    ans=final.solver.eval(vector)
+                    output+=f'{hex(addr)} ({length}) :{hex(ans)}\n'
                     solution.append((hex(addr),length,ans))
                     is_modify=1
         solutions.append(solution)
